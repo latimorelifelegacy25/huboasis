@@ -10,18 +10,19 @@ function unauthorized() {
 }
 
 export function middleware(request: NextRequest) {
-  if (!request.nextUrl.pathname.startsWith("/admin")) {
+  const pathname = request.nextUrl.pathname;
+
+  if (!pathname.startsWith("/admin") || pathname.startsWith("/admin/login")) {
     return NextResponse.next();
   }
 
   const adminPassword = process.env.ADMIN_PASSWORD;
   const adminUsername = process.env.ADMIN_USERNAME ?? "jackson";
 
+  // The app already has Supabase email/password admin login. ADMIN_PASSWORD is an
+  // optional extra Basic Auth gate for deployments that need another perimeter.
   if (!adminPassword) {
-    return new NextResponse(
-      "Latimore OS admin is not configured. Set ADMIN_PASSWORD before exposing /admin.",
-      { status: 503 }
-    );
+    return NextResponse.next();
   }
 
   const authorization = request.headers.get("authorization");
