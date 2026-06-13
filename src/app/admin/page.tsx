@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { createClient } from "@/lib/supabase/server";
 import { listLeads, type LeadSummary } from "@/lib/queries";
+import { logout } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +60,13 @@ function UrgencyBadge({ urgency }: { urgency: LeadSummary["urgency"] }) {
 }
 
 export default async function AdminPage() {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+
+  if (!userData?.user) {
+    redirect("/admin/login");
+  }
+
   const leads = await listLeads();
   const highUrgency = leads.filter((lead) => lead.urgency === "high").length;
   const partnerInterest = leads.filter(
@@ -69,14 +79,23 @@ export default async function AdminPage() {
       <main className="flex-1">
         <section className="bg-brand-navy text-brand-cream">
           <div className="mx-auto max-w-6xl px-4 py-10">
-            <p className="text-sm uppercase tracking-wide text-brand-gold">
-              Latimore OS Admin
-            </p>
-            <h1 className="mt-2 text-3xl font-bold">Intake Lead Dashboard</h1>
-            <p className="mt-3 max-w-2xl text-sm text-brand-cream/80">
-              Review every virtual intake submission, prioritize high-urgency
-              protection gaps, and open each advisor brief before follow-up.
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm uppercase tracking-wide text-brand-gold">
+                  Latimore OS Admin
+                </p>
+                <h1 className="mt-2 text-3xl font-bold">Intake Lead Dashboard</h1>
+                <p className="mt-3 max-w-2xl text-sm text-brand-cream/80">
+                  Review every virtual intake submission, prioritize high-urgency
+                  protection gaps, and open each advisor brief before follow-up.
+                </p>
+              </div>
+              <form action={logout}>
+                <button className="rounded-md border border-brand-gold px-3 py-2 text-sm font-semibold text-brand-gold hover:bg-brand-gold hover:text-brand-navy">
+                  Sign out
+                </button>
+              </form>
+            </div>
           </div>
         </section>
 
