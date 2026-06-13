@@ -1,28 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const ADMIN_MATCHERS = ["/admin", "/api/admin"];
+
+function isAdminPath(pathname: string) {
+  return ADMIN_MATCHERS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
+}
+
+function withPrivateHeaders(response: NextResponse) {
+  response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  response.headers.set("Cache-Control", "no-store, max-age=0");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
+}
+
+function notFound() {
+  return withPrivateHeaders(new NextResponse("Not Found", { status: 404 }));
+}
+
 function unauthorized() {
-  return new NextResponse("Admin authentication required.", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Latimore OS Admin"',
-    },
-  });
+  return withPrivateHeaders(
+    new NextResponse("Authentication required.", {
+      status: 401,
+      headers: {
+        "WWW-Authenticate": 'Basic realm="Latimore OS"',
+      },
+    })
+  );
 }
 
 export function middleware(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+  const { pathname } = request.nextUrl;
 
-  if (!pathname.startsWith("/admin") || pathname.startsWith("/admin/login")) {
+  if (!isAdminPath(pathname)) {
     return NextResponse.next();
   }
 
   const adminPassword = process.env.ADMIN_PASSWORD;
   const adminUsername = process.env.ADMIN_USERNAME ?? "jackson";
 
-  // The app already has Supabase email/password admin login. ADMIN_PASSWORD is an
-  // optional extra Basic Auth gate for deployments that need another perimeter.
+  // Fail closed: if the deployment does not have ADMIN_PASSWORD configured,
+  // admin routes are not viewable by anyone.
   if (!adminPassword) {
-    return NextResponse.next();
+    return notFound();
   }
 
   const authorization = request.headers.get("authorization");
@@ -33,11 +55,17 @@ export function middleware(request: NextRequest) {
 
   try {
     const decoded = atob(authorization.slice(6));
-    const [username, ...passwordParts] = decoded.split(":");
-    const password = passwordParts.join(":");
+    const separatorIndex = decoded.indexOf(":");
+
+    if (separatorIndex === -1) {
+      return unauthorized();
+    }
+
+    const username = decoded.slice(0, separatorIndex);
+    const password = decoded.slice(separatorIndex + 1);
 
     if (username === adminUsername && password === adminPassword) {
-      return NextResponse.next();
+      return withPrivateHeaders(NextResponse.next());
     }
   } catch {
     return unauthorized();
@@ -47,5 +75,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin", "/admin/:path*", "/api/admin", "/api/admin/:path*"],
 };
