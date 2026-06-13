@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const ADMIN_MATCHERS = ["/admin", "/api/admin"];
+const ADMIN_MATCHERS = [
+  "/admin",
+  "/dashboard",
+  "/crm",
+  "/leads",
+  "/api/admin",
+  "/api/analytics",
+  "/api/leads",
+];
 
 function isAdminPath(pathname: string) {
   return ADMIN_MATCHERS.some(
@@ -10,9 +18,11 @@ function isAdminPath(pathname: string) {
 
 function withPrivateHeaders(response: NextResponse) {
   response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
-  response.headers.set("Cache-Control", "no-store, max-age=0");
+  response.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
   response.headers.set("Pragma", "no-cache");
   response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   return response;
 }
 
@@ -42,7 +52,7 @@ export function middleware(request: NextRequest) {
   const adminUsername = process.env.ADMIN_USERNAME ?? "jackson";
 
   // Fail closed: if the deployment does not have ADMIN_PASSWORD configured,
-  // admin routes are not viewable by anyone.
+  // admin routes and admin APIs are not viewable by anyone.
   if (!adminPassword) {
     return notFound();
   }
@@ -75,5 +85,20 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin", "/admin/:path*", "/api/admin", "/api/admin/:path*"],
+  matcher: [
+    "/admin",
+    "/admin/:path*",
+    "/dashboard",
+    "/dashboard/:path*",
+    "/crm",
+    "/crm/:path*",
+    "/leads",
+    "/leads/:path*",
+    "/api/admin",
+    "/api/admin/:path*",
+    "/api/analytics",
+    "/api/analytics/:path*",
+    "/api/leads",
+    "/api/leads/:path*",
+  ],
 };
