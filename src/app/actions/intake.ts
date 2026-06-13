@@ -5,6 +5,7 @@ import {
   calculateAdvisorScore,
   calculateClientScore,
   calculateDimeGap,
+  PRIORITY_LABELS,
 } from "@/lib/scoring";
 import { buildAdvisorAlertPayload, sendEmailAlert, sendGoogleChatAlert } from "@/lib/notifications";
 import type { IntakeFormData } from "@/lib/types";
@@ -27,6 +28,18 @@ function toNumber(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatJourney(value: IntakeFormData["journey"]): string {
+  if (value === "business_partner") return "Business Partner";
+  if (value === "both") return "Client + Business Partner";
+  return "Client";
+}
+
+function scoreTierFromUrgency(urgency: "low" | "medium" | "high") {
+  if (urgency === "high") return "hot";
+  if (urgency === "medium") return "warm";
+  return "cold";
+}
+
 export interface SubmitIntakeResult {
   success: boolean;
   leadId?: string;
@@ -43,17 +56,42 @@ export async function submitIntake(
     return { success: false, error: "Name and email are required." };
   }
 
+  const validPriorities = data.selectedPriorities.filter((p) =>
+    PRIORITY_VALUES.has(p)
+  );
+  const fullName = `${data.firstName} ${data.lastName}`.trim();
+  const topPriority = validPriorities[0];
+  const productInterest = topPriority
+    ? PRIORITY_LABELS[topPriority] ?? topPriority
+    : formatJourney(data.journey);
+
+  const notes = [
+    "Latimore virtual interactive intake",
+    `Journey: ${formatJourney(data.journey)}`,
+    data.state ? `State: ${data.state}` : null,
+    data.topPriorityWhy ? `Top priority why: ${data.topPriorityWhy}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   const supabase = createAdminClient();
 
   const { data: lead, error: leadError } = await supabase
     .from("leads")
     .insert({
-      first_name: data.firstName,
-      last_name: data.lastName,
+      full_name: fullName,
       email: data.email,
       phone: data.phone || null,
       state: data.state || null,
       journey: data.journey,
+      product_interest: productInterest,
+      lead_source: "latimore_virtual_intake",
+      page_source: "/intake",
+      status: "New",
+      utm_source: "latimore_os",
+      utm_medium: "intake",
+      utm_campaign: "virtual_interactive_intake",
+      notes,
     })
     .select("id")
     .single();
@@ -122,10 +160,6 @@ export async function submitIntake(
     additional_income_interest: data.additionalIncomeInterest,
   });
 
-  const validPriorities = data.selectedPriorities.filter((p) =>
-    PRIORITY_VALUES.has(p)
-  );
-
   if (validPriorities.length > 0) {
     await supabase.from("client_priorities").insert(
       validPriorities.map((priority, index) => ({
@@ -181,6 +215,11 @@ export async function submitIntake(
     urgency: advisorResult.urgency,
     recommended_tracks: advisorResult.tracks,
   });
+
+  await supabase
+    .from("leads")
+    .update({ score_tier: scoreTierFromUrgency(advisorResult.urgency) })
+    .eq("id", leadId);
 
   await supabase.from("booking_events").insert({
     lead_id: leadId,
