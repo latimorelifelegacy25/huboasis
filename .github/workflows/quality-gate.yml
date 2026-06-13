@@ -1,0 +1,36 @@
+name: Latimore Intake Quality Gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Compliance scan
+        run: node scripts/compliance-scan.mjs
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ADVISOR_ALERT_EMAIL: ${{ secrets.ADVISOR_ALERT_EMAIL }}
+          ADVISOR_ALERT_FROM_EMAIL: ${{ secrets.ADVISOR_ALERT_FROM_EMAIL }}
+          BOOK_WITH_JACKSON_URL: ${{ secrets.BOOK_WITH_JACKSON_URL }}
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+        run: npm run build
