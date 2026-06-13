@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminUser } from "@/lib/admin-auth";
 import { listLeads } from "@/lib/queries";
 import { logout } from "../actions";
 
@@ -11,12 +10,7 @@ const URGENCY_STYLES: Record<string, string> = {
 };
 
 export default async function AdminLeadsPage() {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-
-  if (!userData?.user) {
-    redirect("/admin/login");
-  }
+  await requireAdminUser();
 
   const leads = await listLeads();
 
