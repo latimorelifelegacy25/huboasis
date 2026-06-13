@@ -45,12 +45,29 @@ export interface LeadDetail extends LeadSummary {
   bookingClickedAt: string | null;
 }
 
+function splitFullName(fullName: string | null | undefined) {
+  const cleaned = (fullName ?? "").trim();
+  if (!cleaned) {
+    return { firstName: "Client", lastName: "" };
+  }
+
+  const [firstName, ...rest] = cleaned.split(/\s+/);
+  return {
+    firstName,
+    lastName: rest.join(" "),
+  };
+}
+
+function fallbackJourney(value: unknown): string {
+  return typeof value === "string" && value.length > 0 ? value : "client";
+}
+
 export async function getClientResult(leadId: string) {
   const supabase = createAdminClient();
 
   const { data: lead } = await supabase
     .from("leads")
-    .select("id, first_name, last_name, journey")
+    .select("id, full_name, journey")
     .eq("id", leadId)
     .single();
 
@@ -68,10 +85,12 @@ export async function getClientResult(leadId: string) {
 
   if (!lead || !score) return null;
 
+  const { firstName, lastName } = splitFullName(lead.full_name);
+
   return {
-    firstName: lead.first_name as string,
-    lastName: lead.last_name as string,
-    journey: lead.journey as string,
+    firstName,
+    lastName,
+    journey: fallbackJourney(lead.journey),
     clientScore: score.client_score as number,
     recommendedTracks: ((score.recommended_tracks ?? []) as string[]).map((t) => ({
       id: t,
@@ -109,14 +128,16 @@ export async function getAdvisorSummary(leadId: string): Promise<LeadDetail | nu
       supabase.from("booking_events").select("clicked_at").eq("lead_id", leadId).maybeSingle(),
     ]);
 
+  const { firstName, lastName } = splitFullName(lead.full_name);
+
   return {
     id: lead.id,
-    firstName: lead.first_name,
-    lastName: lead.last_name,
-    email: lead.email,
+    firstName,
+    lastName,
+    email: lead.email ?? "",
     phone: lead.phone,
-    state: lead.state,
-    journey: lead.journey,
+    state: lead.state ?? lead.county ?? null,
+    journey: fallbackJourney(lead.journey),
     createdAt: lead.created_at,
     clientScore: score?.client_score ?? null,
     advisorScore: score?.advisor_score ?? null,
@@ -168,7 +189,7 @@ export async function listLeads(): Promise<LeadSummary[]> {
 
   const { data: leads } = await supabase
     .from("leads")
-    .select("id, first_name, last_name, email, phone, state, journey, created_at")
+    .select("id, full_name, email, phone, county, state, journey, created_at")
     .order("created_at", { ascending: false });
 
   if (!leads) return [];
@@ -181,14 +202,16 @@ export async function listLeads(): Promise<LeadSummary[]> {
 
   return leads.map((lead) => {
     const score = scoreMap.get(lead.id);
+    const { firstName, lastName } = splitFullName(lead.full_name);
+
     return {
       id: lead.id,
-      firstName: lead.first_name,
-      lastName: lead.last_name,
-      email: lead.email,
+      firstName,
+      lastName,
+      email: lead.email ?? "",
       phone: lead.phone,
-      state: lead.state,
-      journey: lead.journey,
+      state: lead.state ?? lead.county ?? null,
+      journey: fallbackJourney(lead.journey),
       createdAt: lead.created_at,
       clientScore: score?.client_score ?? null,
       advisorScore: score?.advisor_score ?? null,
