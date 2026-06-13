@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { requireAdminUser } from "@/lib/admin-auth";
 import { getAdvisorSummary } from "@/lib/queries";
 
 function fmtCurrency(value: unknown): string {
@@ -26,12 +26,7 @@ export default async function AdvisorSummaryPage({
 }: {
   params: Promise<{ leadId: string }>;
 }) {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-
-  if (!userData?.user) {
-    redirect("/admin/login");
-  }
+  await requireAdminUser();
 
   const { leadId } = await params;
   const lead = await getAdvisorSummary(leadId);
