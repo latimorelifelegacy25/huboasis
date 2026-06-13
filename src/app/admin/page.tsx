@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminUser } from "@/lib/admin-auth";
 import { listLeads, type LeadSummary } from "@/lib/queries";
 import { logout } from "./actions";
 
@@ -60,12 +59,7 @@ function UrgencyBadge({ urgency }: { urgency: LeadSummary["urgency"] }) {
 }
 
 export default async function AdminPage() {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-
-  if (!userData?.user) {
-    redirect("/admin/login");
-  }
+  await requireAdminUser();
 
   const leads = await listLeads();
   const highUrgency = leads.filter((lead) => lead.urgency === "high").length;
